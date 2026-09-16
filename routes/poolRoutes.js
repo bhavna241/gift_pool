@@ -23,6 +23,10 @@ function fromPaise(amountPaise) {
   return amountPaise / 100;
 }
 
+function roundAmount(amount) {
+  return Math.round((amount + Number.EPSILON) * 100) / 100;
+}
+
 router.post('/', async (req, res, next) => {
   try {
     const { name, budget, currency } = req.body;
@@ -220,6 +224,108 @@ router.get('/:poolId/summary', async (req, res, next) => {
         participants: participantSummaries
       }
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get('/:poolId/settlements', async (req, res, next) => {
+  try {
+    const { poolId } = req.params;
+    if (!isValidId(poolId)) {
+      return res.status(404).json({ success: false, error: 'Pool not found' });
+    }
+
+    const pool = await Pool.findById(poolId).lean();
+    if (!pool) {
+      return res.status(404).json({ success: false, error: 'Pool not found' });
+    }
+
+    const participants = await Participant.find({ poolId }).sort({ createdAt: 1 }).lean();
+    const payments = await Payment.find({ poolId }).lean();
+    const budgetPaise = Math.round(pool.budget * 100);
+    const fairSharePaise = participants.length ? budgetPaise / participants.length : 0;
+    const paidByParticipant = new Map();
+
+    for (const payment of payments) {
+      const participantKey = payment.participantId.toString();
+      paidByParticipant.set(
+        participantKey,
+        (paidByParticipant.get(participantKey) || 0) + payment.amount
+      );
+    }
+
+    const totalCollectedPaise = payments.reduce((total, payment) => total + payment.amount, 0);
+    const collectionStatus = totalCollectedPaise < budgetPaise
+      ? 'remaining'
+      : totalCollectedPaise === budgetPaise
+        ? 'complete'
+        : 'surplus';
+    const remainingPaise = collectionStatus === 'remaining'
+      ? budgetPaise - totalCollectedPaise
+      : 0;
+    const surplusPaise = collectionStatus === 'surplus'
+      ? totalCollectedPaise - budgetPaise
+      : 0;
+    const settlement = {
+      pool: {
+        id: pool._id,
+        name: pool.name,
+        budget: pool.budget,
+        currency: pool.currency
+      },
+      settlementPossible: collectionStatus === 'complete',
+      collectionStatus,
+      totalCollected: fromPaise(totalCollectedPaise),
+      remaining: fromPaise(remainingPaise),
+      surplus: fromPaise(surplusPaise),
+      transactions: []
+    };
+
+    if (collectionStatus !== 'complete') {
+      return res.json({ success: true, settlement });
+    }
+
+    const debtors = [];
+    const creditors = [];
+    for (const participant of participants) {
+      const totalPaidPaise = paidByParticipant.get(participant._id.toString()) || 0;
+      const balancePaise = totalPaidPaise - fairSharePaise;
+      if (balancePaise < 0) {
+        debtors.push({ participant, amountPaise: -balancePaise });
+      } else if (balancePaise > 0) {
+        creditors.push({ participant, amountPaise: balancePaise });
+      }
+    }
+
+    let debtorIndex = 0;
+    let creditorIndex = 0;
+    while (debtorIndex < debtors.length && creditorIndex < creditors.length) {
+      const debtor = debtors[debtorIndex];
+      const creditor = creditors[creditorIndex];
+      const amountPaise = Math.min(debtor.amountPaise, creditor.amountPaise);
+
+      if (amountPaise > 0) {
+        settlement.transactions.push({
+          from: {
+            id: debtor.participant._id,
+            name: debtor.participant.name
+          },
+          to: {
+            id: creditor.participant._id,
+            name: creditor.participant.name
+          },
+          amount: roundAmount(fromPaise(amountPaise))
+        });
+      }
+
+      debtor.amountPaise -= amountPaise;
+      creditor.amountPaise -= amountPaise;
+      if (debtor.amountPaise <= 0.000001) debtorIndex += 1;
+      if (creditor.amountPaise <= 0.000001) creditorIndex += 1;
+    }
+
+    return res.json({ success: true, settlement });
   } catch (error) {
     return next(error);
   }
