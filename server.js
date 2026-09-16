@@ -2,11 +2,14 @@ require('dotenv').config();
 
 const express = require('express');
 const mongoose = require('mongoose');
+const poolRoutes = require('./routes/poolRoutes');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(express.json());
+
+app.use('/api/pools', poolRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({
