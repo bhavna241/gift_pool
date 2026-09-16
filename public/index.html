@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gift Pool | Shared giving, made clear</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand-mark" aria-hidden="true">GP</div>
+    <div>
+      <p class="eyebrow">AURIGA / ROUND 2</p>
+      <h1>Gift Pool</h1>
+    </div>
+    <p class="header-note">Shared giving, made clear.</p>
+  </header>
+
+  <main class="app-shell">
+    <section class="intro-panel">
+      <div>
+        <p class="eyebrow">ORGANISER WORKSPACE</p>
+        <h2>Keep every contribution<br><em>in the open.</em></h2>
+        <p class="intro-copy">Set the target, track each contribution, and leave with a fair, simple way to settle up.</p>
+      </div>
+      <div class="intro-stamp" aria-label="Current workspace status">
+        <span class="stamp-dot"></span>
+        <span id="workspaceLabel">No pool loaded</span>
+      </div>
+    </section>
+
+    <div id="flashMessage" class="flash-message" role="status" aria-live="polite"></div>
+
+    <section class="setup-grid" aria-labelledby="setupHeading">
+      <div class="section-heading">
+        <span class="section-number">01</span>
+        <div>
+          <p class="eyebrow">START HERE</p>
+          <h2 id="setupHeading">Set up your pool</h2>
+        </div>
+      </div>
+      <form id="poolForm" class="inline-form">
+        <label>
+          <span>Pool name</span>
+          <input id="poolName" name="name" type="text" placeholder="e.g. Farewell Gift" required>
+        </label>
+        <label>
+          <span>Budget <small>(INR)</small></span>
+          <input id="poolBudget" name="budget" type="number" min="0.01" step="0.01" placeholder="6000" required>
+        </label>
+        <button class="button button-dark" type="submit" id="createPoolButton">Create pool <span aria-hidden="true">↗</span></button>
+      </form>
+      <p class="pool-id" id="poolIdLabel"></p>
+    </section>
+
+    <section id="workspace" class="workspace is-hidden">
+      <div class="section-heading section-heading-workspace">
+        <span class="section-number">02</span>
+        <div>
+          <p class="eyebrow">THE PEOPLE</p>
+          <h2 id="poolTitle">Your pool</h2>
+        </div>
+        <button class="button button-quiet" id="refreshButton" type="button">Refresh data <span aria-hidden="true">↻</span></button>
+      </div>
+
+      <div class="management-grid">
+        <section class="tool-panel" aria-labelledby="participantsHeading">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">CONTRIBUTORS</p>
+              <h3 id="participantsHeading">Participants</h3>
+            </div>
+            <span class="count-badge" id="participantCount">0</span>
+          </div>
+          <form id="participantForm" class="stack-form">
+            <label>
+              <span>Add someone</span>
+              <div class="input-action">
+                <input id="participantName" type="text" placeholder="Participant name" required>
+                <button class="button button-coral" type="submit" aria-label="Add participant">Add <span aria-hidden="true">+</span></button>
+              </div>
+            </label>
+          </form>
+          <div id="participantList" class="participant-list empty-state">Add participants to get started.</div>
+        </section>
+
+        <section class="tool-panel payment-panel" aria-labelledby="paymentHeading">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">CONTRIBUTIONS</p>
+              <h3 id="paymentHeading">Record a payment</h3>
+            </div>
+            <span class="currency-note">INR / ₹</span>
+          </div>
+          <form id="paymentForm" class="stack-form">
+            <label>
+              <span>Who paid?</span>
+              <select id="paymentParticipant" required>
+                <option value="">Select participant</option>
+              </select>
+            </label>
+            <div class="form-row">
+              <label>
+                <span>Amount</span>
+                <input id="paymentAmount" type="number" min="0.01" step="0.01" placeholder="0.00" required>
+              </label>
+              <label>
+                <span>Note <small>(optional)</small></span>
+                <input id="paymentNote" type="text" placeholder="Cash, UPI...">
+              </label>
+            </div>
+            <button class="button button-coral button-full" type="submit">Record payment <span aria-hidden="true">↗</span></button>
+          </form>
+        </section>
+      </div>
+
+      <section class="summary-section" aria-labelledby="summaryHeading">
+        <div class="section-heading compact-heading">
+          <span class="section-number">03</span>
+          <div>
+            <p class="eyebrow">AT A GLANCE</p>
+            <h2 id="summaryHeading">Pool summary</h2>
+          </div>
+        </div>
+        <div id="summaryCards" class="summary-cards"></div>
+      </section>
+
+      <section class="details-grid">
+        <section class="table-panel" aria-labelledby="balancesHeading">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">FAIRNESS CHECK</p>
+              <h3 id="balancesHeading">Participant balances</h3>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Participant</th><th>Fair share</th><th>Paid</th><th>Balance</th><th>Status</th></tr>
+              </thead>
+              <tbody id="balanceTableBody"><tr><td colspan="5" class="empty-state">Create a pool to see balances.</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="settlement-panel" aria-labelledby="settlementHeading">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">LAST MILE</p>
+              <h3 id="settlementHeading">Settle up</h3>
+            </div>
+            <span class="settlement-icon" aria-hidden="true">↗</span>
+          </div>
+          <div id="settlementContent" class="settlement-content empty-state">Settlement details will appear here.</div>
+        </section>
+      </section>
+    </section>
+  </main>
+
+  <footer class="site-footer"><span>GIFT POOL</span><span>Simple accounting for a shared gesture.</span></footer>
+  <script src="/app.js"></script>
+</body>
+</html>
