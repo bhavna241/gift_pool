@@ -21,6 +21,10 @@ const paymentSchema = new mongoose.Schema(
     note: {
       type: String,
       trim: true
+    },
+    importKey: {
+      type: String,
+      select: false
     }
   },
   { timestamps: true }

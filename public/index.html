@@ -112,6 +112,25 @@
             <button class="button button-coral button-full" type="submit">Record payment <span aria-hidden="true">↗</span></button>
           </form>
         </section>
+
+        <section class="tool-panel import-panel" aria-labelledby="importHeading">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">PAST CONTRIBUTIONS</p>
+              <h3 id="importHeading">Import a CSV</h3>
+            </div>
+            <span class="currency-note">CSV</span>
+          </div>
+          <form id="importForm" class="stack-form">
+            <label>
+              <span>Contribution file</span>
+              <input id="importFile" type="file" accept=".csv,text/csv" required>
+            </label>
+            <p class="import-help">Use columns such as <strong>name, amount, note</strong>.</p>
+            <button class="button button-dark button-full" type="submit" id="importButton">Import contributions <span aria-hidden="true">↗</span></button>
+          </form>
+          <div id="importReport" class="import-report empty-state">Import results will appear here.</div>
+        </section>
       </div>
 
       <section class="summary-section" aria-labelledby="summaryHeading">

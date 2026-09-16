@@ -17,9 +17,11 @@ function showMessage(message, isError = false) {
 }
 
 async function apiRequest(url, options = {}) {
+  const headers = { ...(options.headers || {}) };
+  if (!(options.body instanceof FormData)) headers['Content-Type'] = 'application/json';
   const response = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-    ...options
+    ...options,
+    headers
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || 'Something went wrong.');
@@ -122,6 +124,41 @@ async function recordPayment(event) {
   }
 }
 
+function renderImportReport(report) {
+  const element = $('#importReport');
+  const rejected = report.rejectedRows.map((row) => `<li>Row ${row.row}: ${escapeHtml(row.reason)}</li>`).join('');
+  const merged = report.mergedNames.map((merge) => `<li>${escapeHtml(merge.originalName)} → ${escapeHtml(merge.matchedParticipant)}</li>`).join('');
+  element.className = 'import-report';
+  element.innerHTML = `<strong>Import complete</strong><div class="report-grid"><span>Processed <b>${report.totalRowsProcessed}</b></span><span>Imported <b>${report.importedRows}</b></span><span>Duplicates skipped <b>${report.duplicateRowsSkipped}</b></span><span>Rejected <b>${report.rejectedRowCount}</b></span></div>${merged ? `<p><b>Merged names</b></p><ul>${merged}</ul>` : ''}${rejected ? `<p><b>Rejected rows</b></p><ul>${rejected}</ul>` : ''}`;
+}
+
+async function importContributions(event) {
+  event.preventDefault();
+  const file = $('#importFile').files[0];
+  if (!file) {
+    showMessage('Choose a CSV file to import.', true);
+    return;
+  }
+  const button = $('#importButton');
+  const formData = new FormData();
+  formData.append('file', file);
+  setBusy(button, true, 'Importing...');
+  try {
+    const data = await apiRequest(`/api/pools/${state.poolId}/import`, {
+      method: 'POST',
+      body: formData
+    });
+    renderImportReport(data.report);
+    await refreshDashboard();
+    showMessage(`Imported ${data.report.importedRows} contribution(s).`);
+    $('#importForm').reset();
+  } catch (error) {
+    showMessage(error.message, true);
+  } finally {
+    setBusy(button, false);
+  }
+}
+
 function renderParticipants(participants) {
   $('#participantCount').textContent = participants.length;
   const list = $('#participantList');
@@ -204,6 +241,7 @@ function escapeHtml(value) {
 $('#poolForm').addEventListener('submit', createPool);
 $('#participantForm').addEventListener('submit', addParticipant);
 $('#paymentForm').addEventListener('submit', recordPayment);
+$('#importForm').addEventListener('submit', importContributions);
 $('#refreshButton').addEventListener('click', refreshDashboard);
 $('#participantList').addEventListener('click', (event) => {
   const button = event.target.closest('[data-remove-id]');

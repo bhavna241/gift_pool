@@ -1,10 +1,16 @@
 const express = require('express');
 const mongoose = require('mongoose');
+const multer = require('multer');
+const { parse } = require('csv-parse/sync');
 const Pool = require('../models/Pool');
 const Participant = require('../models/Participant');
 const Payment = require('../models/Payment');
 
 const router = express.Router();
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 1024 * 1024 }
+});
 
 function isValidId(id) {
   return mongoose.Types.ObjectId.isValid(id);
@@ -25,6 +31,55 @@ function fromPaise(amountPaise) {
 
 function roundAmount(amount) {
   return Math.round((amount + Number.EPSILON) * 100) / 100;
+}
+
+function normalizeName(name) {
+  return String(name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function nameDistance(first, second) {
+  const distances = Array.from({ length: second.length + 1 }, (_, index) => index);
+  for (let firstIndex = 1; firstIndex <= first.length; firstIndex += 1) {
+    let previous = distances[0];
+    distances[0] = firstIndex;
+    for (let secondIndex = 1; secondIndex <= second.length; secondIndex += 1) {
+      const current = distances[secondIndex];
+      distances[secondIndex] = first[firstIndex - 1] === second[secondIndex - 1]
+        ? previous
+        : Math.min(previous + 1, distances[secondIndex] + 1, distances[secondIndex - 1] + 1);
+      previous = current;
+    }
+  }
+  return distances[second.length];
+}
+
+function findMatchingParticipant(name, participants) {
+  const normalized = normalizeName(name);
+  const exact = participants.find((participant) => normalizeName(participant.name) === normalized);
+  if (exact) return { participant: exact, merged: false };
+
+  const possibleMatches = participants.filter((participant) => {
+    const candidate = normalizeName(participant.name);
+    return normalized.length >= 4 && candidate.length >= 4
+      && nameDistance(normalized, candidate) <= 1;
+  });
+  return possibleMatches.length === 1
+    ? { participant: possibleMatches[0], merged: true }
+    : { participant: null, merged: false };
+}
+
+function parseImportedAmount(value) {
+  const text = String(value ?? '').trim();
+  if (!text) return null;
+  const normalized = text.replace(/,/g, '').replace(/^₹\s*/u, '').replace(/^rs\.?\s*/i, '').trim();
+  if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) return null;
+  const [whole, decimal = ''] = normalized.split('.');
+  const paise = Number(whole) * 100 + Number(decimal.padEnd(2, '0'));
+  return Number.isSafeInteger(paise) && paise > 0 ? paise : null;
+}
+
+function importedRowKey(participantId, amountPaise, note) {
+  return `${participantId.toString()}|${amountPaise}|${normalizeName(note)}`;
 }
 
 router.post('/', async (req, res, next) => {
@@ -155,6 +210,111 @@ router.post('/:poolId/payments', async (req, res, next) => {
       payment: {
         ...payment.toObject(),
         amount: fromPaise(payment.amount)
+      }
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post('/:poolId/import', upload.single('file'), async (req, res, next) => {
+  try {
+    const { poolId } = req.params;
+    if (!isValidId(poolId)) {
+      return res.status(404).json({ success: false, error: 'Pool not found' });
+    }
+
+    const pool = await Pool.findById(poolId);
+    if (!pool) {
+      return res.status(404).json({ success: false, error: 'Pool not found' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'A CSV file is required' });
+    }
+
+    let rows;
+    try {
+      rows = parse(req.file.buffer.toString('utf8'), {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
+        relax_column_count: true
+      });
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        error: `CSV could not be parsed: ${error.message}`
+      });
+    }
+
+    const participants = await Participant.find({ poolId }).sort({ createdAt: 1 });
+    const report = {
+      totalRowsProcessed: rows.length,
+      importedRows: 0,
+      duplicateRowsSkipped: 0,
+      mergedNames: [],
+      rejectedRows: []
+    };
+    const seenKeys = new Set();
+    const existingImportedKeys = new Set(
+      (await Payment.find({ poolId, importKey: { $exists: true } }).select('+importKey').lean())
+        .map((payment) => payment.importKey)
+    );
+    const mergedKeys = new Set();
+
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index];
+      const rowNumber = index + 2;
+      const name = row.name || row.participant || row.participantName;
+      const amountValue = row.amount || row.payment || row.contribution;
+      const note = row.note || row.description || '';
+
+      if (!String(name || '').trim()) {
+        report.rejectedRows.push({ row: rowNumber, reason: 'Missing participant name' });
+        continue;
+      }
+      const amountPaise = parseImportedAmount(amountValue);
+      if (amountPaise === null) {
+        report.rejectedRows.push({ row: rowNumber, name: String(name).trim(), reason: 'Invalid amount; expected a positive rupee amount' });
+        continue;
+      }
+
+      let match = findMatchingParticipant(name, participants);
+      if (!match.participant) {
+        match = { participant: await Participant.create({ name: String(name).trim(), poolId }), merged: false };
+        participants.push(match.participant);
+      } else if (match.merged) {
+        const mergeKey = `${normalizeName(name)}|${match.participant._id.toString()}`;
+        if (!mergedKeys.has(mergeKey)) {
+          report.mergedNames.push({ originalName: String(name).trim(), matchedParticipant: match.participant.name });
+          mergedKeys.add(mergeKey);
+        }
+      }
+
+      const importKey = importedRowKey(match.participant._id, amountPaise, note);
+      if (seenKeys.has(importKey) || existingImportedKeys.has(importKey)) {
+        report.duplicateRowsSkipped += 1;
+        continue;
+      }
+
+      await Payment.create({
+        poolId,
+        participantId: match.participant._id,
+        amount: amountPaise,
+        note: String(note).trim() || undefined,
+        importKey
+      });
+      seenKeys.add(importKey);
+      existingImportedKeys.add(importKey);
+      report.importedRows += 1;
+    }
+
+    return res.status(201).json({
+      success: true,
+      report: {
+        ...report,
+        mergedNameCount: report.mergedNames.length,
+        rejectedRowCount: report.rejectedRows.length
       }
     });
   } catch (error) {

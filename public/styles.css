@@ -55,6 +55,7 @@ input:focus, select:focus { border-color: var(--coral); box-shadow: 0 0 0 3px rg
 .management-grid, .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 .tool-panel, .table-panel, .settlement-panel { background: var(--panel); box-shadow: var(--shadow); }
 .tool-panel { min-height: 330px; padding: 26px; }
+.import-panel { grid-column: 1 / -1; min-height: auto; }
 .panel-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 22px; }
 .panel-header h3 { margin: 6px 0 0; font-size: 18px; letter-spacing: -0.4px; }
 .count-badge, .currency-note { padding: 6px 9px; color: var(--ink); background: var(--mint); font: 11px 'DM Mono', monospace; }
@@ -66,6 +67,14 @@ input:focus, select:focus { border-color: var(--coral); box-shadow: 0 0 0 3px rg
 .participant-item button { padding: 2px 5px; color: var(--muted); background: transparent; border: 0; font-size: 17px; }
 .form-row { display: grid; grid-template-columns: 0.75fr 1fr; gap: 12px; }
 .button-full { width: 100%; }
+.import-help { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.import-report { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.5; }
+.import-report strong { color: var(--ink); }
+.report-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0; }
+.report-grid span { padding: 9px; background: #f4f6ef; }
+.report-grid b { display: block; color: var(--ink); font-size: 15px; }
+.import-report p { margin: 12px 0 4px; color: var(--ink); }
+.import-report ul { margin: 4px 0 0; padding-left: 18px; }
 .empty-state { color: var(--muted); font-size: 12px; line-height: 1.6; }
 .summary-section { padding: 54px 0 32px; }
 .compact-heading { margin-bottom: 18px; }
@@ -119,5 +128,6 @@ td:first-child { font-weight: 800; }
   .inline-form, .form-row, .summary-cards { grid-template-columns: 1fr; }
   .summary-card:last-child { grid-column: auto; }
   .tool-panel, .table-panel, .settlement-panel { padding: 20px; }
+  .report-grid { grid-template-columns: 1fr 1fr; }
   .site-footer { display: block; line-height: 2; }
 }
